@@ -94,12 +94,12 @@ def main():
     st.text("- Muhammad Adzikra Dhiya Alfauzan (140810220046)")
     st.text("- Ivan Arsy Himawan (140810220052)")
 
-    # Slider untuk memilih jumlah cluster
-    n_clusters = st.slider("Pilih jumlah cluster", min_value=2, max_value=5, value=3)
-    
     # Upload gambar dari user
     uploaded_file = st.file_uploader("Upload gambar", type=["jpg", "jpeg", "png"])
 
+    # Slider untuk memilih jumlah cluster
+    n_clusters = st.slider("Pilih jumlah cluster", min_value=2, max_value=5, value=3)
+    
     # Jika user tidak mengupload gambar, tampilkan gambar default
     if uploaded_file is None:
         st.subheader("Contoh Gambar")
