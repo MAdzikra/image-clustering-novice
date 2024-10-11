@@ -88,7 +88,8 @@ def show_image_clustering_with_labels(original_image, clustered_image, labels, n
 
 # Fungsi utama Streamlit
 def main():
-    st.title("KMeans Image Clustering (Manual) dengan Optimisasi dan Label Cluster")
+    st.title("KMeans Image Clustering")
+    st.text("Oleh Candra Wibawa (140810220044), Muhammad Adzikra Dhiya Alfauzan (140810220046), dan Ivan Arsy Himawan (140810220052)")
 
     # Slider untuk memilih jumlah cluster
     n_clusters = st.slider("Pilih jumlah cluster", min_value=2, max_value=5, value=3)
