@@ -124,7 +124,7 @@ def main():
         image = Image.open(uploaded_file)
 
         # Tampilkan gambar asli
-        st.image(image, caption="Gambar yang diupload", use_column_width=True)
+        # st.image(image, caption="Gambar yang diupload", use_column_width=True)
 
         # Tampilkan hasil clustering dengan label angka
         clustered_image, labels = cluster_image_manual_fast(image, n_clusters)
