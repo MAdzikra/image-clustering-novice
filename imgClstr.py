@@ -6,31 +6,50 @@ import matplotlib.pyplot as plt
 from scipy.spatial.distance import cdist
 import os
 
-# Fungsi untuk melakukan clustering pada gambar menggunakan algoritma K-Means manual dengan optimisasi
-def cluster_image_manual_fast(image, n_clusters, max_iters=100):
-    image_array = np.array(image)
-    pixel_values = image_array.reshape((-1, 3))
-    pixel_values = np.float32(pixel_values)
+# Fungsi untuk menggabungkan pixel dari beberapa gambar
+def gather_pixels_from_images(images):
+    all_pixels = []
+    for image in images:
+        image_array = np.array(image)
+        pixel_values = image_array.reshape((-1, 3))  # Flatten image to a list of pixels
+        all_pixels.append(pixel_values)
+    return np.vstack(all_pixels)  # Gabungkan semua pixel dari semua gambar
 
-    # Inisialisasi centroid secara acak
+# Fungsi untuk melakukan clustering pada semua gambar sekaligus
+def cluster_images(images, n_clusters, max_iters=100):
+    # Gabungkan semua pixel dari gambar yang digunakan
+    all_pixels = gather_pixels_from_images(images)
+    all_pixels = np.float32(all_pixels)
+
+    # Inisialisasi centroid secara acak dari semua pixel gabungan
     np.random.seed(42)
-    centroids = pixel_values[np.random.choice(pixel_values.shape[0], n_clusters, replace=False)]
+    centroids = all_pixels[np.random.choice(all_pixels.shape[0], n_clusters, replace=False)]
 
+    # Iterasi untuk mengoptimalkan posisi centroid
     for _ in range(max_iters):
-        # Menghitung jarak semua pixel ke setiap centroid (menggunakan vektorisasi cdist)
-        distances = cdist(pixel_values, centroids, metric='euclidean')
-        
-        # Assign setiap pixel ke centroid terdekat
-        labels = np.argmin(distances, axis=1)
+        distances = cdist(all_pixels, centroids, metric='euclidean')  # Hitung jarak dari semua pixel ke centroid
+        labels = np.argmin(distances, axis=1)  # Tentukan label untuk pixel terdekat
 
         # Hitung centroid baru
-        new_centroids = np.array([pixel_values[labels == i].mean(axis=0) for i in range(n_clusters)])
+        new_centroids = np.array([all_pixels[labels == i].mean(axis=0) for i in range(n_clusters)])
 
-        # Jika centroid tidak berubah, hentikan
+        # Jika centroid tidak berubah, hentikan iterasi
         if np.all(centroids == new_centroids):
             break
 
         centroids = new_centroids
+
+    return centroids, labels
+
+# Fungsi untuk mengaplikasikan centroid yang dihitung ke masing-masing gambar
+def apply_centroids_to_image(image, centroids):
+    image_array = np.array(image)
+    pixel_values = image_array.reshape((-1, 3))
+    pixel_values = np.float32(pixel_values)
+
+    # Hitung jarak dari pixel ke setiap centroid
+    distances = cdist(pixel_values, centroids, metric='euclidean')
+    labels = np.argmin(distances, axis=1)
 
     # Buat gambar tersegmentasi berdasarkan label cluster
     segmented_image = centroids[labels]
@@ -38,48 +57,41 @@ def cluster_image_manual_fast(image, n_clusters, max_iters=100):
 
     return np.uint8(segmented_image), labels.reshape(image_array.shape[:2])
 
-# Fungsi untuk menghitung pusat dari tiap cluster
-def get_cluster_centers(labels, n_clusters):
-    cluster_centers = []
-    
-    for i in range(n_clusters):
-        cluster_pixels = np.argwhere(labels == i)
-        if len(cluster_pixels) > 0:
-            # Ambil rata-rata posisi pixel untuk menghitung pusat cluster
-            center_y, center_x = cluster_pixels.mean(axis=0).astype(int)
-            cluster_centers.append((center_x, center_y))
-    
-    return cluster_centers
-
 # Fungsi untuk menambahkan label angka di atas gambar
 def add_labels_to_image(clustered_image, cluster_centers):
-    # Convert gambar ke format yang bisa diolah oleh OpenCV
     clustered_image_with_labels = clustered_image.copy()
 
     # Tambahkan angka label ke pusat tiap cluster
     for i, (center_x, center_y) in enumerate(cluster_centers):
-        # Tambahkan teks label ke gambar (menggunakan cv2.putText)
-        cv2.putText(clustered_image_with_labels, str(i), (center_x, center_y), 
+        cv2.putText(clustered_image_with_labels, str(i), (center_x, center_y),
                     cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 255), 2, cv2.LINE_AA)
 
     return clustered_image_with_labels
 
+# Fungsi untuk menghitung pusat dari tiap cluster
+def get_cluster_centers(labels, n_clusters):
+    cluster_centers = []
+    for i in range(n_clusters):
+        # Ambil semua pixel yang termasuk dalam cluster i
+        cluster_pixels = np.argwhere(labels == i)
+        if len(cluster_pixels) > 0:
+            # Hitung rata-rata posisi pixel untuk menentukan pusat cluster
+            center_y, center_x = cluster_pixels.mean(axis=0).astype(int)
+            cluster_centers.append((center_x, center_y))
+    return cluster_centers
+
+
 # Fungsi untuk menampilkan gambar asli dan hasil clustering dengan label angka di tiap cluster
 def show_image_clustering_with_labels(original_image, clustered_image, labels, n_clusters):
-    # Dapatkan pusat dari tiap cluster
     cluster_centers = get_cluster_centers(labels, n_clusters)
-
-    # Tambahkan label angka di atas gambar clustering
     clustered_image_with_labels = add_labels_to_image(clustered_image, cluster_centers)
 
     fig, axes = plt.subplots(1, 2, figsize=(10, 5))
 
-    # Gambar asli
     axes[0].imshow(original_image)
     axes[0].set_title("Gambar Asli")
     axes[0].axis("off")
 
-    # Gambar clustering dengan label angka
     axes[1].imshow(clustered_image_with_labels)
     axes[1].set_title(f"Clustering dengan {n_clusters} Cluster")
     axes[1].axis("off")
@@ -88,51 +100,30 @@ def show_image_clustering_with_labels(original_image, clustered_image, labels, n
 
 # Fungsi utama Streamlit
 def main():
-    st.title("KMeans Image Clustering")
-    st.text("Oleh : ")
-    st.text("- Candra Wibawa (140810220044)")
-    st.text("- Muhammad Adzikra Dhiya Alfauzan (140810220046)")
-    st.text("- Ivan Arsy Himawan (140810220052)")
+    st.title("KMeans Image Clustering Konsisten untuk Semua Gambar")
+    st.text("Oleh: ")
+
 
     # Upload gambar dari user
-    uploaded_file = st.file_uploader("Upload gambar", type=["jpg", "jpeg", "png"])
+    uploaded_files = st.file_uploader("Upload gambar (multiple)", type=["jpg", "jpeg", "png"], accept_multiple_files=True)
 
     # Slider untuk memilih jumlah cluster
     n_clusters = st.slider("Pilih jumlah cluster", min_value=2, max_value=5, value=3)
-    
-    # Jika user tidak mengupload gambar, tampilkan gambar default
-    if uploaded_file is None:
-        st.subheader("Contoh Gambar")
-        
-        # Nama file gambar default
-        images = ['001.jpg', '002.jpg', '003.jpg', '004.jpg', '005.jpg']
-        
-        # Tampilkan gambar default dengan clustering
-        for image_path in images:
-            if os.path.exists(image_path):
-                image = Image.open(image_path)
-                
-                # Lakukan clustering pada gambar
-                clustered_image, labels = cluster_image_manual_fast(image, n_clusters)
-                
-                # Tampilkan gambar asli dan hasil clustering dengan label
-                show_image_clustering_with_labels(image, clustered_image, labels, n_clusters)
-            else:
-                st.warning(f"Gambar {image_path} tidak ditemukan di folder.")
 
-    # Jika user mengupload gambar, tampilkan gambar tersebut
-    if uploaded_file is not None:
-        st.subheader("Gambar yang Diupload")
-
+    if uploaded_files:
         # Membaca gambar yang diupload
-        image = Image.open(uploaded_file)
+        images = [Image.open(file) for file in uploaded_files]
 
-        # Tampilkan gambar asli
-        # st.image(image, caption="Gambar yang diupload", use_column_width=True)
+        # Lakukan clustering pada dataset gabungan
+        centroids, _ = cluster_images(images, n_clusters)
 
-        # Tampilkan hasil clustering dengan label angka
-        clustered_image, labels = cluster_image_manual_fast(image, n_clusters)
-        show_image_clustering_with_labels(image, clustered_image, labels, n_clusters)
+        # Tampilkan clustering untuk setiap gambar yang diupload
+        for image in images:
+            clustered_image, labels = apply_centroids_to_image(image, centroids)
+            show_image_clustering_with_labels(image, clustered_image, labels, n_clusters)
+
+    else:
+        st.warning("Silakan upload minimal satu gambar untuk di-cluster.")
 
 if __name__ == '__main__':
     main()
